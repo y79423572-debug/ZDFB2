@@ -84,7 +84,8 @@
       }
       input[type='text'],
       input[type='number'],
-      input[type='file'] {
+      input[type='file'],
+      input[type='datetime-local'] {
         width: 100%;
         padding: 8px;
         border: 1px solid var(--border);
@@ -94,6 +95,14 @@
       }
       input[type='file'] {
         padding: 6px;
+      }
+
+      select {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        background: #fff;
       }
 
       /* Rich Text Editor Placeholder */
@@ -194,7 +203,35 @@
         />
       </div>
 
-      <div style="display: flex; gap: 10px">
+      <div class="form-group" style="border-top: 1px solid #eee; padding-top: 10px;">
+        <label>Scheduling (Optional)</label>
+        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+          <div style="flex: 1;">
+            <label style="font-size: 11px;">Start Time</label>
+            <input type="datetime-local" id="schedStart" />
+          </div>
+          <div style="width: 80px;">
+             <label style="font-size: 11px;">Batch Size</label>
+             <input type="number" id="schedBatch" value="1" min="1" />
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px;">
+           <div style="flex: 1;">
+              <label style="font-size: 11px;">Interval</label>
+              <input type="number" id="schedInterval" value="24" min="1" />
+           </div>
+           <div style="flex: 1;">
+              <label style="font-size: 11px;">Unit</label>
+              <select id="schedUnit">
+                <option value="60">Minutes</option>
+                <option value="3600" selected>Hours</option>
+                <option value="86400">Days</option>
+              </select>
+           </div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 10px; margin-top: 16px;">
         <button id="startBtn" class="btn btn-primary">Start Upload</button>
         <button id="stopBtn" class="btn btn-danger">Stop</button>
       </div>
@@ -240,11 +277,6 @@
           id="patreonUrl"
           placeholder="https://www.patreon.com/..."
         />
-      </div>
-
-      <!-- Future settings can go here -->
-      <div class="form-group">
-        <label style="color: #999">Advanced Scheduling (Coming Soon)</label>
       </div>
 
       <button id="saveSettingsBtn" class="btn btn-primary">

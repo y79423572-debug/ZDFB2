@@ -20,12 +20,23 @@
  * @property {string} targetNovel - Novel ID/Title (unused in Phase 1)
  */
 
+/**
+ * @typedef {Object} ScheduleConfig
+ * @property {boolean} enabled
+ * @property {string} startTime - ISO String
+ * @property {number} batchSize
+ * @property {number} intervalVal
+ * @property {number} intervalUnit - seconds
+ */
+
+
 // --- Constants & State ---
 
 const STATE = {
   running: false,
   chapters: /** @type {Chapter[]} */ ([]),
   settings: /** @type {AppSettings} */ ({}),
+  scheduleConfig: /** @type {ScheduleConfig} */ ({}),
   currentIndex: 0
 };
 
@@ -90,12 +101,14 @@ function findElementByText(tagName, text) {
  * Main entry point for the upload flow.
  * @param {Chapter[]} chapters
  * @param {AppSettings} settings
+ * @param {ScheduleConfig} scheduleConfig
  */
-async function runFlow(chapters, settings) {
+async function runFlow(chapters, settings, scheduleConfig) {
   if (STATE.running) return;
   STATE.running = true;
   STATE.chapters = chapters;
   STATE.settings = settings;
+  STATE.scheduleConfig = scheduleConfig;
   STATE.currentIndex = 0;
 
   try {
@@ -111,7 +124,7 @@ async function runFlow(chapters, settings) {
 
       notifyProgress(i + 1, chapters.length, chapter.name);
 
-      await processChapter(chapter);
+      await processChapter(chapter, i);
 
       // Safety delay between chapters
       await sleep(2000);
@@ -143,24 +156,19 @@ async function ensureCorrectBook(targetNovel) {
     }
 
     // Attempt to find the book card
-    // Selectors are hypothetical based on common React/AntDesign patterns in Inkstone
-    // We look for any element that contains the book title
     const potentialTitles = Array.from(document.querySelectorAll('h3, .book-name, .novel-title, a'));
 
     let bookCard = null;
     for (const el of potentialTitles) {
         if (normalize(el.textContent).includes(target)) {
             // Found a match. Now find the "Explore" or "Chapters" or "Create" button relative to this.
-            // Usually the card container is a few parents up.
             bookCard = el.closest('.novel-card') || el.closest('.ant-card') || el.closest('li') || el.parentElement;
             break;
         }
     }
 
     if (!bookCard) {
-        // If searching by ID, maybe check URL?
         if (location.href.includes(target)) return; // Already there
-
         throw new Error(`Could not find novel matching "${targetNovel}". Please ensure it is visible on the dashboard.`);
     }
 
@@ -177,17 +185,15 @@ async function ensureCorrectBook(targetNovel) {
              await sleep(3000);
          }
     }
-
-    // After navigation, ensure we are in a state where we can "Create Chapter"
-    // This will be handled by processChapter -> ensureEditorOpen
 }
 
 
 /**
  * Process a single chapter: Open Editor -> Fill -> Publish -> Schedule (Optional)
  * @param {Chapter} chapter
+ * @param {number} index
  */
-async function processChapter(chapter) {
+async function processChapter(chapter, index) {
   // 1. Ensure we are in the editor (Open "Create Chapter" modal if needed)
   await ensureEditorOpen();
 
@@ -200,12 +206,98 @@ async function processChapter(chapter) {
   // 4. Fill Form
   await fillEditorForm(title, finalBody);
 
-  // 5. Click Publish (which might open Schedule modal or just publish)
-  await clickPublish();
+  // 5. Handle Publication (Instant or Scheduled)
+  if (STATE.scheduleConfig && STATE.scheduleConfig.enabled) {
+      await applySchedule(index);
+  } else {
+      await clickPublish();
+  }
 
-  // 6. Handle Confirmation / Scheduling (Naive implementation for Phase 1/2)
+  // 6. Handle Confirmation
   await confirmPublish();
 }
+
+/**
+ * Calculates the schedule date for the Nth chapter and applies it.
+ * @param {number} index
+ */
+async function applySchedule(index) {
+    const config = STATE.scheduleConfig;
+    const start = new Date(config.startTime);
+    const batchSize = config.batchSize || 1;
+    const intervalSeconds = (config.intervalVal || 24) * (config.intervalUnit || 3600);
+
+    // Calculate which batch this chapter belongs to (0-indexed)
+    const batchIndex = Math.floor(index / batchSize);
+
+    // Calculate timestamp
+    const releaseTime = new Date(start.getTime() + (batchIndex * intervalSeconds * 1000));
+
+    // Formatting for Webnovel Inputs
+    // We assume Webnovel uses Ant Design DatePicker or similar
+    // Format: YYYY-MM-DD HH:mm
+
+    // Click "Scheduled" or Switch if necessary
+    // Often it's a switch or radio. Let's look for "Schedule" text or switch
+    const switchBtn = document.querySelector('button[role="switch"]');
+    if (switchBtn && switchBtn.getAttribute('aria-checked') !== 'true') {
+        switchBtn.click();
+        await sleep(500);
+    }
+
+    // Fill Date
+    // Note: Ant Design DatePickers are complex to automate via raw input value.
+    // We often need to simulate clicks.
+
+    const yyyy = releaseTime.getFullYear();
+    const mm = String(releaseTime.getMonth() + 1).padStart(2, '0');
+    const dd = String(releaseTime.getDate()).padStart(2, '0');
+    const HH = String(releaseTime.getHours()).padStart(2, '0');
+    const MM = String(releaseTime.getMinutes()).padStart(2, '0');
+
+    const dateStr = `${yyyy}-${mm}-${dd}`;
+    const timeStr = `${HH}:${MM}`;
+
+    console.log(`Scheduling Chapter ${index} for ${dateStr} ${timeStr}`);
+
+    // Try to find inputs. Usually "Select date" placeholders.
+    const dateInput = document.querySelector('input[placeholder*="date"], input[placeholder*="日期"]');
+    if (dateInput) {
+        // React/AntD often requires click -> type -> enter
+        dateInput.click();
+        await sleep(200);
+        // Sometimes clicking opens a portal, so we might need to find the active input there?
+        // Or just force value and dispatch events.
+
+        // Strategy: Force value + React Tracker override if possible, or simple events
+        forceInputValue(dateInput, dateStr);
+        dateInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        await sleep(200);
+    }
+
+    const timeInput = document.querySelector('input[placeholder*="time"], input[placeholder*="时间"]');
+    if (timeInput) {
+        timeInput.click();
+        await sleep(200);
+        forceInputValue(timeInput, timeStr);
+        timeInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        await sleep(200);
+    }
+
+    // Click the actual Publish/Confirm button for the schedule
+    // It is often the same "Publish" button
+    await clickPublish();
+}
+
+/**
+ * Helper to force input value for React controlled inputs
+ */
+function forceInputValue(input, value) {
+    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    nativeInputValueSetter.call(input, value);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
 
 /**
  * Parses raw file content into Title and Body.
@@ -421,7 +513,7 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
   }
 
   if (req.action === 'startFlow') {
-    runFlow(req.chapters, req.settings);
+    runFlow(req.chapters, req.settings, req.scheduleConfig);
     sendResponse({ status: 'started' });
   }
 

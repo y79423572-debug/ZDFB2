@@ -1,7 +1,8 @@
-// Phase 3: File Handling System Upgrade
+// Phase 3 & 5: File Handling & Advanced Scheduling
 // - Robust file reading (Text/HTML)
 // - Natural Sort
 // - Memory management for large batches
+// - Scheduling Logic
 
 document.addEventListener('DOMContentLoaded', async () => {
   // --- UI Elements ---
@@ -23,6 +24,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const targetNovelInput = document.getElementById('targetNovel');
   const saveSettingsBtn = document.getElementById('saveSettingsBtn');
   const settingsStatus = document.getElementById('settingsStatus');
+
+  // Scheduling Inputs
+  const schedStart = document.getElementById('schedStart');
+  const schedBatch = document.getElementById('schedBatch');
+  const schedInterval = document.getElementById('schedInterval');
+  const schedUnit = document.getElementById('schedUnit');
 
   // --- State ---
   let selectedFiles = [];
@@ -135,7 +142,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Update UI every 10 files so user knows it's working
         if (i % 10 === 0) {
             statusDiv.textContent = `Reading file ${i+1}/${total}: ${file.name}`;
-            // Allow UI to breathe
             await new Promise(r => setTimeout(r, 0));
         }
 
@@ -147,7 +153,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         } catch (err) {
             console.error(`Failed to read ${file.name}`, err);
-            // We continue, but maybe log it?
             results.push({
                 name: file.name,
                 content: `[ERROR READING FILE] ${err.message}`
@@ -165,6 +170,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     try {
+      // Step 0: Gather Schedule Config
+      const scheduleConfig = {
+          enabled: !!schedStart.value,
+          startTime: schedStart.value, // ISO string YYYY-MM-DDTHH:mm
+          batchSize: parseInt(schedBatch.value, 10) || 1,
+          intervalVal: parseInt(schedInterval.value, 10) || 24,
+          intervalUnit: parseInt(schedUnit.value, 10) || 3600 // seconds
+      };
+
       // Step 1: Read Files
       statusDiv.textContent = 'Reading files...';
       const chapters = await readFiles(selectedFiles);
@@ -178,7 +192,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         'prefixTemplate',
         'suffixTemplate',
         'patreonUrl',
+        'targetNovel', // Should also grab this from input if user typed it just now
       ]);
+
+      // Override targetNovel from Input to be safe
+      settings.targetNovel = targetNovelInput.value || settings.targetNovel;
 
       // Step 4: Send Payload
       statusDiv.textContent = 'Starting automation...';
@@ -186,6 +204,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         action: 'startFlow',
         chapters: chapters,
         settings: settings,
+        scheduleConfig: scheduleConfig
       };
 
       await send(tab.id, payload);
