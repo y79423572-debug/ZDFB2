@@ -1,42 +1,177 @@
-document.addEventListener('DOMContentLoaded', () => {
+// Phase 1 & 2: Popup Logic with Storage and UI Handling
+
+document.addEventListener('DOMContentLoaded', async () => {
+  // --- UI Elements ---
+  const tabs = document.querySelectorAll('.tab-btn');
+  const contents = document.querySelectorAll('.tab-content');
+
   const startBtn = document.getElementById('startBtn');
   const stopBtn = document.getElementById('stopBtn');
   const statusDiv = document.getElementById('status');
-  const startName = document.getElementById('startName');
-  const endName = document.getElementById('endName');
-  const initialSchedule = document.getElementById('initialSchedule');
-  const prefixControls = document.getElementById('prefixControls');
-  const patreonUrl = document.getElementById('patreonUrl');
-  const currentChapter = document.getElementById('currentChapter');
-  const totalChapters = document.getElementById('totalChapters');
+  const fileInput = document.getElementById('files');
+  const fileCount = document.getElementById('file-count');
 
-  function setStatus(text) {
-    statusDiv.textContent = `状态：${text}`;
-  }
+  const prefixEditor = document.getElementById('prefixEditor');
+  const suffixEditor = document.getElementById('suffixEditor');
+  const saveTemplatesBtn = document.getElementById('saveTemplatesBtn');
+  const templateStatus = document.getElementById('templateStatus');
 
-  function getPrefixMode() {
-    const checked = document.querySelector('input[name="prefixMode"]:checked');
-    return checked ? checked.value : 'standard';
-  }
+  const patreonUrlInput = document.getElementById('patreonUrl');
+  const targetNovelInput = document.getElementById('targetNovel');
+  const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+  const settingsStatus = document.getElementById('settingsStatus');
 
-  function getScheduleMode() {
-    const checked = document.querySelector('input[name="scheduleMode"]:checked');
-    return checked ? checked.value : 'weekly';
-  }
+  // --- State ---
+  let selectedFiles = [];
 
-  function updatePrefixControls() {
-    const mode = getPrefixMode();
-    prefixControls.style.display = mode === 'standard' ? 'block' : 'none';
-  }
+  // --- Initialization ---
+  loadStoredData();
 
-  document.querySelectorAll('input[name="prefixMode"]').forEach(r => {
-    r.addEventListener('change', updatePrefixControls);
+  // --- Tab Switching ---
+  tabs.forEach((tab) => {
+    tab.addEventListener('click', () => {
+      tabs.forEach((t) => t.classList.remove('active'));
+      contents.forEach((c) => c.classList.remove('active'));
+
+      tab.classList.add('active');
+      const targetId = tab.dataset.tab;
+      document.getElementById(targetId).classList.add('active');
+    });
   });
-  updatePrefixControls();
 
+  // --- Toolbar Logic (Simple) ---
+  document.querySelectorAll('.tool-btn').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const cmd = btn.dataset.cmd;
+      document.execCommand(cmd, false, null);
+    });
+  });
+
+  // --- Storage Handling ---
+  async function loadStoredData() {
+    const data = await chrome.storage.local.get([
+      'prefixTemplate',
+      'suffixTemplate',
+      'patreonUrl',
+      'targetNovel',
+    ]);
+
+    if (data.prefixTemplate) prefixEditor.innerHTML = data.prefixTemplate;
+    if (data.suffixTemplate) suffixEditor.innerHTML = data.suffixTemplate;
+    if (data.patreonUrl) patreonUrlInput.value = data.patreonUrl;
+    if (data.targetNovel) targetNovelInput.value = data.targetNovel;
+  }
+
+  saveTemplatesBtn.addEventListener('click', async () => {
+    const prefix = prefixEditor.innerHTML;
+    const suffix = suffixEditor.innerHTML;
+
+    await chrome.storage.local.set({
+      prefixTemplate: prefix,
+      suffixTemplate: suffix,
+    });
+
+    showStatus(templateStatus, 'Templates saved successfully!');
+  });
+
+  saveSettingsBtn.addEventListener('click', async () => {
+    const url = patreonUrlInput.value;
+    const novel = targetNovelInput.value;
+
+    await chrome.storage.local.set({
+      patreonUrl: url,
+      targetNovel: novel,
+    });
+
+    showStatus(settingsStatus, 'Settings saved successfully!');
+  });
+
+  function showStatus(element, msg) {
+    element.textContent = msg;
+    setTimeout(() => {
+      element.textContent = '';
+    }, 2000);
+  }
+
+  // --- File Handling (Phase 3 Prep) ---
+  fileInput.addEventListener('change', (e) => {
+    selectedFiles = Array.from(e.target.files);
+    // Sort files by name (alphanumeric sort needed for Ch1, Ch2, Ch10)
+    selectedFiles.sort((a, b) => {
+      return a.name.localeCompare(b.name, undefined, {
+        numeric: true,
+        sensitivity: 'base',
+      });
+    });
+
+    fileCount.textContent = `${selectedFiles.length} files selected`;
+    // In Phase 3, we will read these files. For now, we just acknowledge selection.
+  });
+
+  // --- Flow Control ---
+  startBtn.addEventListener('click', async () => {
+    if (selectedFiles.length === 0) {
+      statusDiv.textContent = 'Error: No files selected.';
+      return;
+    }
+
+    statusDiv.textContent = 'Status: Preparing files...';
+
+    try {
+      // For now (Phase 1/2), we will read files here and pass content to content script
+      // This is a naive implementation for text/html files.
+      // In Phase 3, we will make this robust.
+      const chapters = [];
+      for (const file of selectedFiles) {
+        const text = await file.text();
+        chapters.push({
+          name: file.name,
+          content: text,
+        });
+      }
+
+      const tab = await getActiveTab();
+      await ensureContentScript(tab.id);
+
+      // Get settings from storage to ensure we have latest
+      const settings = await chrome.storage.local.get([
+        'prefixTemplate',
+        'suffixTemplate',
+        'patreonUrl',
+      ]);
+
+      const payload = {
+        action: 'startFlow',
+        chapters: chapters, // Sending all content (warning: memory limit if too huge, but usually novels are text)
+        settings: settings,
+      };
+
+      await send(tab.id, payload);
+      statusDiv.textContent = `Status: Flow started with ${chapters.length} chapters.`;
+    } catch (e) {
+      console.error(e);
+      statusDiv.textContent = `Error: ${e.message}`;
+    }
+  });
+
+  stopBtn.addEventListener('click', async () => {
+    try {
+      const tab = await getActiveTab();
+      await send(tab.id, { action: 'stopFlow' });
+      statusDiv.textContent = 'Status: Stopping...';
+    } catch (e) {
+      console.error(e);
+    }
+  });
+
+  // --- Helpers ---
   async function getActiveTab() {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab) throw new Error('未找到活动标签页');
+    const [tab] = await chrome.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+    if (!tab) throw new Error('No active tab found');
     return tab;
   }
 
@@ -45,14 +180,17 @@ document.addEventListener('DOMContentLoaded', () => {
       await chrome.tabs.sendMessage(tabId, { action: '__ping' });
     } catch (e) {
       try {
-        await chrome.scripting.executeScript({ target: { tabId }, files: ['content.js'] });
+        await chrome.scripting.executeScript({
+          target: { tabId },
+          files: ['content.js'],
+        });
       } catch (err) {
-        console.warn('注入 content.js 失败：', err);
+        console.warn('Injection failed:', err);
       }
     }
   }
 
-  async function send(tabId, payload) {
+  function send(tabId, payload) {
     return new Promise((resolve, reject) => {
       chrome.tabs.sendMessage(tabId, payload, (res) => {
         const err = chrome.runtime.lastError;
@@ -62,54 +200,14 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  startBtn.addEventListener('click', async () => {
-    try {
-      const tab = await getActiveTab();
-      await ensureContentScript(tab.id);
-      const start = (startName.value || '1_p2').trim();
-      const end = (endName.value || '3_p2').trim();
-      const schedule = (initialSchedule.value || '').trim();
-      const mode = getPrefixMode();
-      const scheduleMode = getScheduleMode();
-      const payload = {
-        action: 'startFlow',
-        startName: start,
-        endName: end,
-        intervalMs: 3000,
-        initialSchedule: schedule,
-        scheduleMode,
-        useStandard: mode === 'standard',
-        patreonUrl: (patreonUrl.value || '').trim(),
-        currentChapter: parseInt(currentChapter.value || '1', 10) || 1,
-        totalChapters: parseInt(totalChapters.value || '200', 10) || 200
-      };
-      await send(tab.id, payload);
-      setStatus(`流程已启动：${start} -> ${end}`);
-    } catch (e) {
-      console.error(e);
-      setStatus(`错误：${e.message || e}`);
-    }
-  });
-
-  stopBtn.addEventListener('click', async () => {
-    try {
-      const tab = await getActiveTab();
-      await ensureContentScript(tab.id);
-      await send(tab.id, { action: 'stopFlow' });
-      setStatus('流程已停止');
-    } catch (e) {
-      console.error(e);
-      setStatus(`错误：${e.message || e}`);
-    }
-  });
-
+  // Monitor progress
   chrome.runtime.onMessage.addListener((req) => {
-    if (req && req.action === 'flowProgress') {
-      setStatus(`进行中：${req.current}/${req.total}（${req.name}.html）`);
-    } else if (req && req.action === 'flowDone') {
-      setStatus('流程完成');
-    } else if (req && req.action === 'flowError') {
-      setStatus(`错误：${req.message}`);
+    if (req.action === 'flowProgress') {
+      statusDiv.textContent = `Progress: ${req.current}/${req.total} (${req.name})`;
+    } else if (req.action === 'flowDone') {
+      statusDiv.textContent = 'Status: Complete';
+    } else if (req.action === 'flowError') {
+      statusDiv.textContent = `Error: ${req.message}`;
     }
   });
 });

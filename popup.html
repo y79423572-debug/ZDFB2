@@ -1,77 +1,261 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8" />
-  <style>
-    body { width: 360px; padding: 12px; font-family: Arial, sans-serif; }
-    h2 { margin: 0 0 10px 0; font-size: 16px; }
-    label { display:block; font-size:12px; color:#555; margin: 8px 0 4px; }
-    input { width:100%; padding:8px; box-sizing:border-box; border:1px solid #ddd; border-radius:4px; }
-    button { width: 100%; padding: 10px; margin: 10px 0 0; border: none; border-radius: 4px; color: #fff; cursor: pointer; background: #1677ff; }
-    #stopBtn { background: #f44336; }
-    #status { margin-top: 8px; font-size: 12px; color: #555; }
-    .row { display:flex; gap:8px; }
-    .row > div { flex:1; }
-    .radio { display:flex; gap:8px; align-items:center; margin-top:8px; }
-    .section { border:1px solid #eee; padding:8px; border-radius:6px; margin-top:8px; }
-    /* 覆盖 label 的块级样式，仅对单选区域生效，使单选圆点与文字同一行 */
-    .radio label { display:inline-flex; align-items:center; gap:6px; margin:0; font-size:14px; color:#333; }
-    .radio label input[type="radio"] { width:auto; padding:0; border:none; }
-  </style>
-</head>
-<body>
-  <h2>Webnovel 助手</h2>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Webnovel Helper v2.0</title>
+    <style>
+      :root {
+        --primary: #1677ff;
+        --danger: #ff4d4f;
+        --bg: #f5f5f5;
+        --text: #333;
+        --border: #d9d9d9;
+      }
 
-  <div class="row">
-    <div>
-      <label for="startName">起始文件名</label>
-      <input id="startName" type="text" value="1_p2" />
-    </div>
-    <div>
-      <label for="endName">终止文件名</label>
-      <input id="endName" type="text" value="3_p2" />
-    </div>
-  </div>
+      body {
+        width: 400px;
+        padding: 0;
+        margin: 0;
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+          'Helvetica Neue', Arial, sans-serif;
+        background: #fff;
+        color: var(--text);
+      }
 
-  <label for="initialSchedule">初始时间（YYYY/MM/DD HH:mm）</label>
-  <input id="initialSchedule" type="text" value="2025/10/02 15:00" />
+      /* Tabs */
+      .tabs {
+        display: flex;
+        background: #fafafa;
+        border-bottom: 1px solid var(--border);
+      }
+      .tab-btn {
+        flex: 1;
+        padding: 12px;
+        border: none;
+        background: none;
+        cursor: pointer;
+        font-weight: 500;
+        color: #666;
+        border-bottom: 2px solid transparent;
+        transition: all 0.2s;
+      }
+      .tab-btn:hover {
+        background: #f0f0f0;
+      }
+      .tab-btn.active {
+        color: var(--primary);
+        border-bottom-color: var(--primary);
+        background: #fff;
+      }
 
-  <div class="section">
-    <div class="radio">
-      <label><input type="radio" name="scheduleMode" value="weekly" checked /> 黄金发布窗口定时（默认）</label>
-    </div>
-    <div class="radio">
-      <label><input type="radio" name="scheduleMode" value="fixed" /> 固定时间发布定时</label>
-    </div>
-  </div>
+      /* Content Area */
+      .tab-content {
+        display: none;
+        padding: 16px;
+        animation: fadeIn 0.2s;
+      }
+      .tab-content.active {
+        display: block;
+      }
 
-  <div class="section">
-    <div class="radio">
-      <label><input type="radio" name="prefixMode" value="standard" checked /> 使用标准前后缀（默认）</label>
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(5px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* Form Elements */
+      .form-group {
+        margin-bottom: 16px;
+      }
+      label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 500;
+        font-size: 13px;
+        color: #555;
+      }
+      input[type='text'],
+      input[type='number'],
+      input[type='file'] {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        box-sizing: border-box;
+        font-size: 14px;
+      }
+      input[type='file'] {
+        padding: 6px;
+      }
+
+      /* Rich Text Editor Placeholder */
+      .rich-editor {
+        width: 100%;
+        min-height: 100px;
+        max-height: 200px;
+        padding: 8px;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        overflow-y: auto;
+        font-family: inherit;
+        white-space: pre-wrap;
+        outline: none;
+      }
+      .rich-editor:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 2px rgba(22, 119, 255, 0.2);
+      }
+      .editor-toolbar {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 4px;
+      }
+      .tool-btn {
+        padding: 2px 6px;
+        font-size: 12px;
+        cursor: pointer;
+        background: #eee;
+        border: 1px solid #ddd;
+        border-radius: 2px;
+      }
+
+      /* Buttons */
+      .btn {
+        width: 100%;
+        padding: 10px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: 500;
+        transition: background 0.2s;
+        font-size: 14px;
+      }
+      .btn-primary {
+        background: var(--primary);
+        color: #fff;
+      }
+      .btn-primary:hover {
+        background: #4096ff;
+      }
+      .btn-danger {
+        background: var(--danger);
+        color: #fff;
+      }
+      .btn-danger:hover {
+        background: #ff7875;
+      }
+
+      .status-bar {
+        margin-top: 16px;
+        padding: 10px;
+        background: #f6f6f6;
+        border-radius: 4px;
+        font-size: 12px;
+        color: #666;
+        border: 1px solid #eee;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Navigation -->
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+      <button class="tab-btn" data-tab="templates">Templates</button>
+      <button class="tab-btn" data-tab="settings">Settings</button>
     </div>
-    <div class="radio">
-      <label><input type="radio" name="prefixMode" value="none" /> 不使用前后缀</label>
-    </div>
-    <div id="prefixControls">
-      <label for="patreonUrl">你的Patreon地址</label>
-      <input id="patreonUrl" type="text" value="https://www.patreon.com/webnovel" />
-      <div class="row">
-        <div>
-          <label for="currentChapter">当前章节</label>
-          <input id="currentChapter" type="number" value="1" />
-        </div>
-        <div>
-          <label for="totalChapters">总章节数</label>
-          <input id="totalChapters" type="number" value="200" />
+
+    <!-- Dashboard Tab -->
+    <div id="dashboard" class="tab-content active">
+      <div class="form-group">
+        <label for="files">Upload Chapters (Select Files or Folder)</label>
+        <input type="file" id="files" multiple webkitdirectory />
+        <div
+          id="file-count"
+          style="font-size: 12px; color: #888; margin-top: 4px"
+        >
+          No files selected
         </div>
       </div>
+
+      <div class="form-group">
+        <label>Target Novel</label>
+        <input
+          type="text"
+          id="targetNovel"
+          placeholder="Novel Title or ID (Optional)"
+        />
+      </div>
+
+      <div style="display: flex; gap: 10px">
+        <button id="startBtn" class="btn btn-primary">Start Upload</button>
+        <button id="stopBtn" class="btn btn-danger">Stop</button>
+      </div>
+
+      <div id="status" class="status-bar">Status: Idle</div>
     </div>
-  </div>
 
-  <button id="startBtn">开始流程</button>
-  <button id="stopBtn">停止流程</button>
+    <!-- Templates Tab -->
+    <div id="templates" class="tab-content">
+      <div class="form-group">
+        <label>Prefix Template</label>
+        <div class="editor-toolbar">
+          <button class="tool-btn" data-cmd="bold">B</button>
+          <button class="tool-btn" data-cmd="italic">I</button>
+        </div>
+        <div id="prefixEditor" class="rich-editor" contenteditable="true"></div>
+      </div>
 
-  <div id="status">状态：空闲</div>
-  <script src="popup.js"></script>
-</body>
+      <div class="form-group">
+        <label>Suffix Template</label>
+        <div class="editor-toolbar">
+          <button class="tool-btn" data-cmd="bold">B</button>
+          <button class="tool-btn" data-cmd="italic">I</button>
+        </div>
+        <div id="suffixEditor" class="rich-editor" contenteditable="true"></div>
+      </div>
+
+      <button id="saveTemplatesBtn" class="btn btn-primary">
+        Save Templates
+      </button>
+      <div
+        id="templateStatus"
+        style="margin-top: 8px; font-size: 12px; color: green; min-height: 18px"
+      ></div>
+    </div>
+
+    <!-- Settings Tab -->
+    <div id="settings" class="tab-content">
+      <div class="form-group">
+        <label for="patreonUrl">Patreon URL</label>
+        <input
+          type="text"
+          id="patreonUrl"
+          placeholder="https://www.patreon.com/..."
+        />
+      </div>
+
+      <!-- Future settings can go here -->
+      <div class="form-group">
+        <label style="color: #999">Advanced Scheduling (Coming Soon)</label>
+      </div>
+
+      <button id="saveSettingsBtn" class="btn btn-primary">
+        Save Settings
+      </button>
+      <div
+        id="settingsStatus"
+        style="margin-top: 8px; font-size: 12px; color: green; min-height: 18px"
+      ></div>
+    </div>
+
+    <script src="popup.js"></script>
+  </body>
 </html>
