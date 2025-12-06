@@ -99,6 +99,11 @@ async function runFlow(chapters, settings) {
   STATE.currentIndex = 0;
 
   try {
+    // 0. Ensure we are targeting the correct book
+    if (settings.targetNovel) {
+        await ensureCorrectBook(settings.targetNovel);
+    }
+
     for (let i = 0; i < chapters.length; i++) {
       if (!STATE.running) break;
       STATE.currentIndex = i;
@@ -119,6 +124,64 @@ async function runFlow(chapters, settings) {
     STATE.running = false;
   }
 }
+
+/**
+ * Navigates to the correct book if specified.
+ * @param {string} targetNovel - Novel Title or ID
+ */
+async function ensureCorrectBook(targetNovel) {
+    const normalize = (s) => String(s || '').trim().toLowerCase();
+    const target = normalize(targetNovel);
+
+    // If we are already in the editor, assume user navigated manually or we are continuing
+    const editorBody = document.querySelector('body#tinymce') || document.querySelector('.mce-content-body');
+    if (editorBody) return;
+
+    // Check if we are on the dashboard
+    if (!location.href.includes('inkstone.webnovel.com')) {
+        throw new Error('Please navigate to the Webnovel Inkstone Dashboard first.');
+    }
+
+    // Attempt to find the book card
+    // Selectors are hypothetical based on common React/AntDesign patterns in Inkstone
+    // We look for any element that contains the book title
+    const potentialTitles = Array.from(document.querySelectorAll('h3, .book-name, .novel-title, a'));
+
+    let bookCard = null;
+    for (const el of potentialTitles) {
+        if (normalize(el.textContent).includes(target)) {
+            // Found a match. Now find the "Explore" or "Chapters" or "Create" button relative to this.
+            // Usually the card container is a few parents up.
+            bookCard = el.closest('.novel-card') || el.closest('.ant-card') || el.closest('li') || el.parentElement;
+            break;
+        }
+    }
+
+    if (!bookCard) {
+        // If searching by ID, maybe check URL?
+        if (location.href.includes(target)) return; // Already there
+
+        throw new Error(`Could not find novel matching "${targetNovel}". Please ensure it is visible on the dashboard.`);
+    }
+
+    // Find action button inside the card
+    const actionBtn = bookCard.querySelector('a[href*="chapter"], button');
+    if (actionBtn) {
+        actionBtn.click();
+        await sleep(3000); // Wait for navigation
+    } else {
+         // Try clicking the title itself
+         const link = bookCard.querySelector('a');
+         if (link) {
+             link.click();
+             await sleep(3000);
+         }
+    }
+
+    // After navigation, ensure we are in a state where we can "Create Chapter"
+    // This will be handled by processChapter -> ensureEditorOpen
+}
+
 
 /**
  * Process a single chapter: Open Editor -> Fill -> Publish -> Schedule (Optional)
