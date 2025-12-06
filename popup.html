@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <style>
+    body { width: 360px; padding: 12px; font-family: Arial, sans-serif; }
+    h2 { margin: 0 0 10px 0; font-size: 16px; }
+    label { display:block; font-size:12px; color:#555; margin: 8px 0 4px; }
+    input { width:100%; padding:8px; box-sizing:border-box; border:1px solid #ddd; border-radius:4px; }
+    button { width: 100%; padding: 10px; margin: 10px 0 0; border: none; border-radius: 4px; color: #fff; cursor: pointer; background: #1677ff; }
+    #stopBtn { background: #f44336; }
+    #status { margin-top: 8px; font-size: 12px; color: #555; }
+    .row { display:flex; gap:8px; }
+    .row > div { flex:1; }
+    .radio { display:flex; gap:8px; align-items:center; margin-top:8px; }
+    .section { border:1px solid #eee; padding:8px; border-radius:6px; margin-top:8px; }
+    /* 覆盖 label 的块级样式，仅对单选区域生效，使单选圆点与文字同一行 */
+    .radio label { display:inline-flex; align-items:center; gap:6px; margin:0; font-size:14px; color:#333; }
+    .radio label input[type="radio"] { width:auto; padding:0; border:none; }
+  </style>
+</head>
+<body>
+  <h2>Webnovel 助手</h2>
+
+  <div class="row">
+    <div>
+      <label for="startName">起始文件名</label>
+      <input id="startName" type="text" value="1_p2" />
+    </div>
+    <div>
+      <label for="endName">终止文件名</label>
+      <input id="endName" type="text" value="3_p2" />
+    </div>
+  </div>
+
+  <label for="initialSchedule">初始时间（YYYY/MM/DD HH:mm）</label>
+  <input id="initialSchedule" type="text" value="2025/10/02 15:00" />
+
+  <div class="section">
+    <div class="radio">
+      <label><input type="radio" name="scheduleMode" value="weekly" checked /> 黄金发布窗口定时（默认）</label>
+    </div>
+    <div class="radio">
+      <label><input type="radio" name="scheduleMode" value="fixed" /> 固定时间发布定时</label>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="radio">
+      <label><input type="radio" name="prefixMode" value="standard" checked /> 使用标准前后缀（默认）</label>
+    </div>
+    <div class="radio">
+      <label><input type="radio" name="prefixMode" value="none" /> 不使用前后缀</label>
+    </div>
+    <div id="prefixControls">
+      <label for="patreonUrl">你的Patreon地址</label>
+      <input id="patreonUrl" type="text" value="https://www.patreon.com/webnovel" />
+      <div class="row">
+        <div>
+          <label for="currentChapter">当前章节</label>
+          <input id="currentChapter" type="number" value="1" />
+        </div>
+        <div>
+          <label for="totalChapters">总章节数</label>
+          <input id="totalChapters" type="number" value="200" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button id="startBtn">开始流程</button>
+  <button id="stopBtn">停止流程</button>
+
+  <div id="status">状态：空闲</div>
+  <script src="popup.js"></script>
+</body>
+</html>
