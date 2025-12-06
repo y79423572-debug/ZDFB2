@@ -1,4 +1,7 @@
-// Phase 1 & 2: Popup Logic with Storage and UI Handling
+// Phase 3: File Handling System Upgrade
+// - Robust file reading (Text/HTML)
+// - Natural Sort
+// - Memory management for large batches
 
 document.addEventListener('DOMContentLoaded', async () => {
   // --- UI Elements ---
@@ -39,7 +42,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
-  // --- Toolbar Logic (Simple) ---
+  // --- Toolbar Logic ---
   document.querySelectorAll('.tool-btn').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
@@ -94,20 +97,65 @@ document.addEventListener('DOMContentLoaded', async () => {
     }, 2000);
   }
 
-  // --- File Handling (Phase 3 Prep) ---
+  // --- File Handling (Phase 3) ---
   fileInput.addEventListener('change', (e) => {
-    selectedFiles = Array.from(e.target.files);
-    // Sort files by name (alphanumeric sort needed for Ch1, Ch2, Ch10)
-    selectedFiles.sort((a, b) => {
+    // 1. Filter for text/html only to avoid system files like .DS_Store
+    const rawFiles = Array.from(e.target.files).filter(f =>
+      f.name.match(/\.(txt|html|htm)$/i) || f.type.startsWith('text/')
+    );
+
+    // 2. Sort files naturally (Chapter 1, Chapter 2, Chapter 10)
+    selectedFiles = rawFiles.sort((a, b) => {
       return a.name.localeCompare(b.name, undefined, {
         numeric: true,
         sensitivity: 'base',
       });
     });
 
-    fileCount.textContent = `${selectedFiles.length} files selected`;
-    // In Phase 3, we will read these files. For now, we just acknowledge selection.
+    fileCount.textContent = `${selectedFiles.length} files selected (Filtered & Sorted)`;
+
+    if (selectedFiles.length > 0) {
+      statusDiv.textContent = `Ready: ${selectedFiles[0].name} ... ${selectedFiles[selectedFiles.length-1].name}`;
+    }
   });
+
+  async function readFiles(files) {
+    const results = [];
+    const total = files.length;
+
+    // Safety check for massive uploads
+    if (total > 500) {
+        if (!confirm(`You are about to upload ${total} chapters. This might take a while to read. Continue?`)) {
+            throw new Error('Upload cancelled by user.');
+        }
+    }
+
+    for (let i = 0; i < total; i++) {
+        const file = files[i];
+        // Update UI every 10 files so user knows it's working
+        if (i % 10 === 0) {
+            statusDiv.textContent = `Reading file ${i+1}/${total}: ${file.name}`;
+            // Allow UI to breathe
+            await new Promise(r => setTimeout(r, 0));
+        }
+
+        try {
+            const text = await file.text();
+            results.push({
+                name: file.name,
+                content: text
+            });
+        } catch (err) {
+            console.error(`Failed to read ${file.name}`, err);
+            // We continue, but maybe log it?
+            results.push({
+                name: file.name,
+                content: `[ERROR READING FILE] ${err.message}`
+            });
+        }
+    }
+    return results;
+  }
 
   // --- Flow Control ---
   startBtn.addEventListener('click', async () => {
@@ -116,39 +164,33 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    statusDiv.textContent = 'Status: Preparing files...';
-
     try {
-      // For now (Phase 1/2), we will read files here and pass content to content script
-      // This is a naive implementation for text/html files.
-      // In Phase 3, we will make this robust.
-      const chapters = [];
-      for (const file of selectedFiles) {
-        const text = await file.text();
-        chapters.push({
-          name: file.name,
-          content: text,
-        });
-      }
+      // Step 1: Read Files
+      statusDiv.textContent = 'Reading files...';
+      const chapters = await readFiles(selectedFiles);
 
+      // Step 2: Inject Content Script
       const tab = await getActiveTab();
       await ensureContentScript(tab.id);
 
-      // Get settings from storage to ensure we have latest
+      // Step 3: Get Settings
       const settings = await chrome.storage.local.get([
         'prefixTemplate',
         'suffixTemplate',
         'patreonUrl',
       ]);
 
+      // Step 4: Send Payload
+      statusDiv.textContent = 'Starting automation...';
       const payload = {
         action: 'startFlow',
-        chapters: chapters, // Sending all content (warning: memory limit if too huge, but usually novels are text)
+        chapters: chapters,
         settings: settings,
       };
 
       await send(tab.id, payload);
-      statusDiv.textContent = `Status: Flow started with ${chapters.length} chapters.`;
+      statusDiv.textContent = `Flow started: ${chapters.length} chapters.`;
+
     } catch (e) {
       console.error(e);
       statusDiv.textContent = `Error: ${e.message}`;
@@ -162,6 +204,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       statusDiv.textContent = 'Status: Stopping...';
     } catch (e) {
       console.error(e);
+      statusDiv.textContent = 'Error: Could not stop. (Is tab open?)';
     }
   });
 
